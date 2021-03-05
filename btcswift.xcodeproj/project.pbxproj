@@ -3,11 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 50;
+	objectVersion = 52;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		E42FA6EE25F02CAC008DA92E /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E42FA6ED25F02CAC008DA92E /* main.swift */; };
+		E42FA6F725F02DAF008DA92E /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = E42FA6F625F02DAF008DA92E /* Crypto */; };
+		E42FA6FA25F17E48008DA92E /* kernels.metal in Sources */ = {isa = PBXBuildFile; fileRef = E42FA6F925F17E48008DA92E /* kernels.metal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +27,7 @@
 /* Begin PBXFileReference section */
 		E42FA6EA25F02CAC008DA92E /* btcswift */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = btcswift; sourceTree = BUILT_PRODUCTS_DIR; };
 		E42FA6ED25F02CAC008DA92E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		E42FA6F925F17E48008DA92E /* kernels.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = kernels.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +35,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E42FA6F725F02DAF008DA92E /* Crypto in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,6 +45,7 @@
 		E42FA6E125F02CAC008DA92E = {
 			isa = PBXGroup;
 			children = (
+				E42FA6F925F17E48008DA92E /* kernels.metal */,
 				E42FA6EC25F02CAC008DA92E /* btcswift */,
 				E42FA6EB25F02CAC008DA92E /* Products */,
 			);
@@ -78,6 +83,9 @@
 			dependencies = (
 			);
 			name = btcswift;
+			packageProductDependencies = (
+				E42FA6F625F02DAF008DA92E /* Crypto */,
+			);
 			productName = btcswift;
 			productReference = E42FA6EA25F02CAC008DA92E /* btcswift */;
 			productType = "com.apple.product-type.tool";
@@ -105,6 +113,9 @@
 				Base,
 			);
 			mainGroup = E42FA6E125F02CAC008DA92E;
+			packageReferences = (
+				E42FA6F525F02DAF008DA92E /* XCRemoteSwiftPackageReference "swift-crypto" */,
+			);
 			productRefGroup = E42FA6EB25F02CAC008DA92E /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -119,6 +130,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E42FA6FA25F17E48008DA92E /* kernels.metal in Sources */,
 				E42FA6EE25F02CAC008DA92E /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -285,6 +297,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E42FA6F525F02DAF008DA92E /* XCRemoteSwiftPackageReference "swift-crypto" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-crypto";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E42FA6F625F02DAF008DA92E /* Crypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E42FA6F525F02DAF008DA92E /* XCRemoteSwiftPackageReference "swift-crypto" */;
+			productName = Crypto;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E42FA6E225F02CAC008DA92E /* Project object */;
 }
