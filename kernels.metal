@@ -118,42 +118,34 @@ void sha256_transform(thread uint32_t* state, thread const uint8_t* data)
     state[7] += h;
 }
 
-kernel void sha256(device const uint8_t* input,
-                   device const uint8_t* len,
-                   device uint8_t* result)
+void sha256(thread const uint8_t* input,
+                   const uint8_t len,
+                   thread uint8_t* result,
+                   thread uint32_t* state)
 {
-    uint32_t state[8] = {
-        0x6a09e667,
-        0xbb67ae85,
-        0x3c6ef372,
-        0xa54ff53a,
-        0x510e527f,
-        0x9b05688c,
-        0x1f83d9ab,
-        0x5be0cd19,
-    };
     uint32_t datalen = 0;
-    uint64_t bitlen = 0;
     uint8_t data[64];
-    for(int i = 0; i < len[0]; i++) {
+    uint64_t bitlen = 0;
+    for(int i = 0; i < len; i++) {
         data[datalen] = input[i];
         datalen++;
+        /* will not happen
         if(datalen == 64) {
             sha256_transform(state, data);
             bitlen += 512;
             datalen = 0;
-        }
+        }*/
     }
     
     uint32_t it = datalen;
-    if(datalen < 56) {
+    if(bitlen == 0 && datalen < 56) {
         data[it] = 0x80;
         it++;
         while(it < 56) {
             data[it] = 0x00;
             it++;
         }
-    } else {
+    } /* will not happen else {
         data[it] = 0x80;
         it++;
         while(it < 64) {
@@ -164,7 +156,7 @@ kernel void sha256(device const uint8_t* input,
         for(int i = 0; i < 56; i++) {
             data[i] = 0;
         }
-    }
+    } */
     
     bitlen += datalen * 8;
     data[63] = uint8_t(bitlen);
@@ -196,3 +188,48 @@ kernel void sha256(device const uint8_t* input,
     result[63] = (a >> 0) & 0xff;
      */
 }
+
+kernel void sha256_double(device const uint8_t* input,
+                          device const uint32_t* in_state,
+                   device uint8_t* result)
+{
+    uint8_t intermediate[32];
+    uint8_t intlen = 64;
+    uint8_t final_result[32];
+    uint8_t working_input[64];
+    uint32_t working_state[8];
+    for(int i = 0; i < 64; i++) {
+        working_input[i] = input[i];
+    }
+    for(int i = 0; i < 8; i++) {
+        working_state[i] = in_state[i];
+    }
+    sha256_transform(working_state, working_input);
+    
+    for(int i = 0; i < 4; i++) {
+        intermediate[i]      = uint8_t((working_state[0] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 4]  = uint8_t((working_state[1] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 8]  = uint8_t((working_state[2] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 12] = uint8_t((working_state[3] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 16] = uint8_t((working_state[4] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 20] = uint8_t((working_state[5] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 24] = uint8_t((working_state[6] >> (24 - i * 8)) & 0x000000ff);
+        intermediate[i + 28] = uint8_t((working_state[7] >> (24 - i * 8)) & 0x000000ff);
+    }
+    intlen = 32;
+    uint32_t real_state[8] = {
+        0x6a09e667,
+        0xbb67ae85,
+        0x3c6ef372,
+        0xa54ff53a,
+        0x510e527f,
+        0x9b05688c,
+        0x1f83d9ab,
+        0x5be0cd19,
+    };
+    sha256(intermediate, intlen, final_result, real_state);
+    for(int i = 0; i < 32; i++) {
+        result[i] = final_result[i];
+    }
+}
+
