@@ -189,47 +189,87 @@ void sha256(thread const uint8_t* input,
      */
 }
 
+void reverse_byte_order(thread uint8_t* input, thread uint8_t* output)
+{
+    for(int i = 0; i < 4; i++) {
+        output[i * 8 + 0] = input[31 - i * 8];
+        output[i * 8 + 1] = input[30 - i * 8];
+        output[i * 8 + 2] = input[29 - i * 8];
+        output[i * 8 + 3] = input[28 - i * 8];
+        output[i * 8 + 4] = input[27 - i * 8];
+        output[i * 8 + 5] = input[26 - i * 8];
+        output[i * 8 + 6] = input[25 - i * 8];
+        output[i * 8 + 7] = input[24 - i * 8];
+    }
+}
+
 kernel void sha256_double(device const uint8_t* input,
                           device const uint32_t* in_state,
-                   device uint8_t* result)
+                          device const uint32_t* nonce_base,
+                          device const uint8_t* target,
+                   device uint8_t* result,
+                          device uint32_t* nonce_found,
+                          uint position [[thread_position_in_grid]])
 {
     uint8_t intermediate[32];
     uint8_t intlen = 64;
     uint8_t final_result[32];
     uint8_t working_input[64];
     uint32_t working_state[8];
-    for(int i = 0; i < 64; i++) {
-        working_input[i] = input[i];
-    }
-    for(int i = 0; i < 8; i++) {
-        working_state[i] = in_state[i];
-    }
-    sha256_transform(working_state, working_input);
-    
-    for(int i = 0; i < 4; i++) {
-        intermediate[i]      = uint8_t((working_state[0] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 4]  = uint8_t((working_state[1] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 8]  = uint8_t((working_state[2] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 12] = uint8_t((working_state[3] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 16] = uint8_t((working_state[4] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 20] = uint8_t((working_state[5] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 24] = uint8_t((working_state[6] >> (24 - i * 8)) & 0x000000ff);
-        intermediate[i + 28] = uint8_t((working_state[7] >> (24 - i * 8)) & 0x000000ff);
-    }
-    intlen = 32;
-    uint32_t real_state[8] = {
-        0x6a09e667,
-        0xbb67ae85,
-        0x3c6ef372,
-        0xa54ff53a,
-        0x510e527f,
-        0x9b05688c,
-        0x1f83d9ab,
-        0x5be0cd19,
-    };
-    sha256(intermediate, intlen, final_result, real_state);
-    for(int i = 0; i < 32; i++) {
-        result[i] = final_result[i];
+    uint32_t my_base = nonce_base[0] + position * 0x100;
+    for(uint32_t nonce = my_base; nonce < my_base + 0xff; nonce++) {
+        for(int i = 0; i < 64; i++) {
+            working_input[i] = input[i];
+        }
+        working_input[15] = uint8_t((nonce >> 0) & 0xff);
+        working_input[14] = uint8_t((nonce >> 8) & 0xff);
+        working_input[13] = uint8_t((nonce >> 16) & 0xff);
+        working_input[12] = uint8_t((nonce >> 24) & 0xff);
+        for(int i = 0; i < 8; i++) {
+            working_state[i] = in_state[i];
+        }
+        sha256_transform(working_state, working_input);
+        
+        for(int i = 0; i < 4; i++) {
+            intermediate[i]      = uint8_t((working_state[0] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 4]  = uint8_t((working_state[1] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 8]  = uint8_t((working_state[2] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 12] = uint8_t((working_state[3] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 16] = uint8_t((working_state[4] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 20] = uint8_t((working_state[5] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 24] = uint8_t((working_state[6] >> (24 - i * 8)) & 0x000000ff);
+            intermediate[i + 28] = uint8_t((working_state[7] >> (24 - i * 8)) & 0x000000ff);
+        }
+        intlen = 32;
+        uint32_t real_state[8] = {
+            0x6a09e667,
+            0xbb67ae85,
+            0x3c6ef372,
+            0xa54ff53a,
+            0x510e527f,
+            0x9b05688c,
+            0x1f83d9ab,
+            0x5be0cd19,
+        };
+        sha256(intermediate, intlen, final_result, real_state);
+        int found = 0;
+        //uint8_t reversed[32];
+        //reverse_byte_order(final_result, reversed);
+        for(int i = 0; i < 32; i++) {
+            if(final_result[31 - i] > target[i])
+                break;
+            if(final_result[31 - i] < target[i]) {
+                found = 1;
+                break;
+            }
+        }
+        if(found) {
+            nonce_found[0] = nonce;
+            for(int i = 0; i < 32; i++) {
+                result[i] = final_result[i];
+            }
+            break;
+        }
     }
 }
 

@@ -52,6 +52,48 @@ let PORT = 1314
 
 let DIFFICULTY_BASE = "0x0000FFFF00000000000000000000000000000000000000000000000000000000"
 
+extension NSDecimalNumber {
+    convenience init(string: String, base: Int) {
+        guard base >= 2 && base <= 16 else { fatalError("Invalid base") }
+
+        let digits = "0123456789abcdef"
+        let baseNum = NSDecimalNumber(value: base)
+
+        var res = NSDecimalNumber(value: 0)
+        for ch in string {
+            let index = digits.firstIndex(of: ch)!
+            let digit = digits.distance(from: digits.startIndex, to: index)
+            res = res.multiplying(by: baseNum).adding(NSDecimalNumber(value: digit))
+        }
+
+        self.init(decimal: res.decimalValue)
+    }
+
+    func toBase(_ base: Int) -> String {
+        guard base >= 2 && base <= 16 else { fatalError("Invalid base") }
+
+        // Support higher bases by added more digits
+        let digits = "0123456789abcdef"
+        let rounding = NSDecimalNumberHandler(roundingMode: .down, scale: 0, raiseOnExactness: false, raiseOnOverflow: false, raiseOnUnderflow: false, raiseOnDivideByZero: false)
+        let baseNum = NSDecimalNumber(value: base)
+
+        var res = ""
+        var val = self
+        while val.compare(0) == .orderedDescending {
+            let next = val.dividing(by: baseNum, withBehavior: rounding)
+            let round = next.multiplying(by: baseNum)
+            let diff = val.subtracting(round)
+            let digit = diff.intValue
+            let index = digits.index(digits.startIndex, offsetBy: digit)
+            res.insert(digits[index], at: res.startIndex)
+
+            val = next
+        }
+
+        return res
+    }
+}
+
 func testHash() {
     let version = String(format: "%08x", UInt32(bigEndian: 1).littleEndian)
     let prevBlock = strToLittleEndian(inp: "00000000000008a3a41b85b8b29ad444def299fee21793cd8b9e567eab02cd81")
@@ -144,44 +186,6 @@ func testJSON() {
     }
 }
 
-func testMetal() {
-    let device = MTLCreateSystemDefaultDevice()!
-    let queue = device.makeCommandQueue()!
-    let library = device.makeDefaultLibrary()!
-    let function = library.makeFunction(name: "add_arrays")!
-    let pipelineState = try! device.makeComputePipelineState(function: function)
-    
-    let count = 1500
-    let vec1 = [Float](repeating: 3, count: count)
-    let vec2 = [Float](repeating: 5, count: count)
-    let vec3 = [Float](repeating: 0, count: count)
-    let length = count * MemoryLayout< Float >.stride
-    let buf1 = device.makeBuffer(bytes: vec1, length: length, options: [MTLResourceOptions.storageModeShared])
-    let buf2 = device.makeBuffer(bytes: vec2, length: length, options: [MTLResourceOptions.storageModeShared])
-    let buf3 = device.makeBuffer(bytes: vec3, length: length, options: [MTLResourceOptions.storageModeShared])
-
-    let commandBuffer = queue.makeCommandBuffer()!
-    let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
-    commandEncoder.setComputePipelineState(pipelineState)
-    commandEncoder.setBuffer(buf1, offset: 0, index: 0)
-    commandEncoder.setBuffer(buf2, offset: 0, index: 1)
-    commandEncoder.setBuffer(buf3, offset: 0, index: 2)
-
-    let gridSize = MTLSizeMake(count, 1, 1)
-    let threadGroupSize = MTLSizeMake(min(count, pipelineState.maxTotalThreadsPerThreadgroup), 1, 1)
-    // let width = pipelineState.threadExecutionWidth
-    // let height = pipelineState.maxTotalThreadsPerThreadgroup / width
-    // let threadsPerGroup = MTLSizeMake(width, height, 1)
-    // let threadsPerGrid = MTLSizeMake(width, height, 1)
-    commandEncoder.dispatchThreads(gridSize, threadsPerThreadgroup: threadGroupSize)
-    
-    commandEncoder.endEncoding()
-    commandBuffer.commit()
-    commandBuffer.waitUntilCompleted()
-    
-    print(buf3!.contents().load(fromByteOffset: 0, as: Float.self))
-}
-
 func metalSha(state: [UInt32], hash_input: [UInt8]) {
     let device = MTLCreateSystemDefaultDevice()!
     let queue = device.makeCommandQueue()!
@@ -189,34 +193,70 @@ func metalSha(state: [UInt32], hash_input: [UInt8]) {
     let function = library.makeFunction(name: "sha256_double")!
     let pipelineState = try! device.makeComputePipelineState(function: function)
     
-    print("Input length: \(hash_input.count)")
-    let output = [UInt8](repeating: 0, count: 32)
+    let threads = pipelineState.maxTotalThreadsPerThreadgroup
+    let thwidth = pipelineState.threadExecutionWidth
+    print("Number of threads: \(threads)")
+    print("Thread width: \(thwidth)")
+    let tgtnum: UInt64 = 1
+    let maxtgt: UInt64 = 0xffff0000
+    let tgt: UInt64 = maxtgt / tgtnum
+    // let tgtn = String(format: "000000%08x00000000000000000000000000000000000000000000000000", tgt)
+    let tgtn = String(format: "00000005ffff0000000000000000000000000000000000000000000000000000")
+    print("Target: \(maxtgt)")
+    print("Target: \(tgtnum)")
+    print("Target: \(tgt)")
+    print("Target: \(tgtn)")
+    let target = [UInt8](Data(hexString: tgtn)!)
+    print("Target len: \(target.count)")
+    var noncebase: [UInt32] = [0]
+    let noncefound: [UInt32] = [0xffffffff]
+    let output = [UInt8](repeating: 0xff, count: 32)
     let length = hash_input.count * MemoryLayout< UInt8 >.stride
-    let inbuf = device.makeBuffer(bytes: hash_input, length: length, options: [MTLResourceOptions.storageModeShared])
-    let statebuf = device.makeBuffer(bytes: state, length: state.count * MemoryLayout<UInt32>.stride, options: [MTLResourceOptions.storageModeShared])
-    let outbuf = device.makeBuffer(bytes: output, length: 32, options: [MTLResourceOptions.storageModeShared])
+    let inbuf = device.makeBuffer(bytes: hash_input, length: length, options: [MTLResourceOptions.storageModeManaged])
+    let statebuf = device.makeBuffer(bytes: state, length: state.count * MemoryLayout<UInt32>.stride, options: [MTLResourceOptions.storageModeManaged])
+    let noncebuf = device.makeBuffer(bytes: noncebase, length: MemoryLayout<UInt32>.stride, options: [MTLResourceOptions.storageModeShared])
+    let targetbuf = device.makeBuffer(bytes: target, length: target.count * MemoryLayout<UInt8>.stride, options: [MTLResourceOptions.storageModeManaged])
+    let outbuf = device.makeBuffer(bytes: output, length: 32, options: [MTLResourceOptions.storageModeManaged])
+    let noncefoundbuf = device.makeBuffer(bytes: noncefound, length: MemoryLayout<UInt32>.stride, options: [MTLResourceOptions.storageModeManaged])
 
-    let commandBuffer = queue.makeCommandBuffer()!
-    let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
-    commandEncoder.setComputePipelineState(pipelineState)
-    commandEncoder.setBuffer(inbuf, offset: 0, index: 0)
-    commandEncoder.setBuffer(statebuf, offset: 0, index: 1)
-    commandEncoder.setBuffer(outbuf, offset: 0, index: 2)
+    let gridSize = MTLSizeMake(65536, 1, 1)
+    let threadGroupSize = MTLSizeMake(threads, 1, 1)
 
-    let gridSize = MTLSizeMake(1, 1, 1)
-    let threadGroupSize = MTLSizeMake(1, 1, 1)
-    commandEncoder.dispatchThreads(gridSize, threadsPerThreadgroup: threadGroupSize)
-    
-    commandEncoder.endEncoding()
-    commandBuffer.commit()
-    commandBuffer.waitUntilCompleted()
-    
-    print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 0, as: UInt8.self)))
-    print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 1, as: UInt8.self)))
-    print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 28, as: UInt8.self)))
-    print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 29, as: UInt8.self)))
-    print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 30, as: UInt8.self)))
-    print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 31, as: UInt8.self)))
+    for i in 0..<0x100 { // nonce from 0 to 0xffffffff
+        noncebase[0] = UInt32(i) * 0x100 * UInt32(gridSize.width)
+        noncebuf!.contents().copyMemory(from: noncebase, byteCount: MemoryLayout<UInt32>.stride)
+        if i % 10 == 0 {
+            print("Iteration \(i): \(Date()) - \(noncebase[0])")
+        }
+
+        autoreleasepool {
+            let commandBuffer = queue.makeCommandBuffer()!
+            let commandEncoder = commandBuffer.makeComputeCommandEncoder()!
+            commandEncoder.setComputePipelineState(pipelineState)
+            commandEncoder.setBuffer(inbuf, offset: 0, index: 0)
+            commandEncoder.setBuffer(statebuf, offset: 0, index: 1)
+            commandEncoder.setBuffer(noncebuf, offset: 0, index: 2)
+            commandEncoder.setBuffer(targetbuf, offset: 0, index: 3)
+            commandEncoder.setBuffer(outbuf, offset: 0, index: 4)
+            commandEncoder.setBuffer(noncefoundbuf, offset: 0, index: 5)
+            commandEncoder.dispatchThreads(gridSize, threadsPerThreadgroup: threadGroupSize)
+            commandEncoder.endEncoding()
+            commandBuffer.commit()
+            commandBuffer.waitUntilCompleted()
+        }
+        
+        let nonce = noncefoundbuf!.contents().load(fromByteOffset: 0, as: UInt32.self)
+        if nonce != 0xffffffff {
+            print(String(format: "%08x", nonce))
+            print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 0, as: UInt8.self)))
+            print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 1, as: UInt8.self)))
+            print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 28, as: UInt8.self)))
+            print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 29, as: UInt8.self)))
+            print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 30, as: UInt8.self)))
+            print(String(format: "%02x", outbuf!.contents().load(fromByteOffset: 31, as: UInt8.self)))
+            break
+        }
+    }
 }
 
 func rotright(a: UInt32, b: UInt32) -> UInt32
@@ -410,8 +450,6 @@ testHash()
 // testStratum()
 
 testJSON()
-
-// testMetal()
 
 // testMetalSha()
 
