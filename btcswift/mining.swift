@@ -32,9 +32,22 @@ func initMetal() -> MetalContext {
                         pipelineState: pipelineState,
                         threadGroupSize: threadGroupSize)
 }
-func readAndMine(ctxt: MetalContext, params: MineParameters) -> (UInt32, UInt32)? {
+
+enum MineResult {
+    case interrupted(UInt32, UInt32)
+    case exhausted
+    case found(UInt32, UInt32)
+}
+
+func readAndMine(ctxt: MetalContext, params: MineParameters, oistream: InputStream?, interruptData: (UInt32, UInt32)?) -> MineResult {
     assert(params.extranonce2_size >= 2)
-    for extranon2 in UInt32(0)..<0xffff {
+    var extranon2_start = UInt32(0)
+    var intdata2: UInt32? = nil
+    if let intdata = interruptData {
+        extranon2_start = intdata.0
+        intdata2 = intdata.1
+    }
+    for extranon2 in extranon2_start..<0xffff {
         var extranonce2 = String(format: "%04x", extranon2)
         extranonce2 = extranonce2.leftPadding(toLength: params.extranonce2_size * 2, withPad: "0")
         assert(extranonce2.count == params.extranonce2_size * 2)
@@ -50,14 +63,23 @@ func readAndMine(ctxt: MetalContext, params: MineParameters) -> (UInt32, UInt32)
         print("Header without padding: \(headerWithoutPadding)")
         assert(header.count == 256)
         let (_, state, _) = sha256(input: [UInt8](Data(hexString: header1)!))
-        if let found_nonce = metalSha(metalctxt: ctxt, state: state, hash_input: [UInt8](Data(hexString: header2)!), difficulty: params.diff) {
-            return (extranon2, found_nonce)
+        let intresult = metalSha(metalctxt: ctxt, state: state, hash_input: [UInt8](Data(hexString: header2)!), difficulty: params.diff, oistream: oistream, interruptData: intdata2)
+        switch intresult {
+        case .interrupted(let intnonce): return .interrupted(extranon2, intnonce)
+        case .found(let nonce): return .found(extranon2, nonce)
+        case .exhausted: intdata2 = nil
         }
     }
-    return nil
+    return .exhausted
 }
 
-func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], difficulty: UInt64) -> UInt32? {
+enum IntermediateMineResult {
+    case interrupted(UInt32)
+    case exhausted
+    case found(UInt32)
+}
+
+func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], difficulty: UInt64, oistream: InputStream?, interruptData: UInt32?) -> IntermediateMineResult {
     let maxtgt: UInt64 = 0xffff0000
     var tgtn: String
     if difficulty == 0 {
@@ -72,6 +94,9 @@ func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], dif
     let target = [UInt8](Data(hexString: tgtn)!)
     print("Target len: \(target.count)")
     var noncebase: [UInt32] = [0]
+    if let intdata = interruptData {
+        noncebase = [intdata]
+    }
     let noncefound: [UInt32] = [0xffffffff]
     let output = [UInt8](repeating: 0xff, count: 32)
     let length = hash_input.count * MemoryLayout< UInt8 >.stride
@@ -85,8 +110,8 @@ func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], dif
 
     let gridSize = MTLSizeMake(65536, 1, 1)
 
-    for i in 0..<0x100 { // nonce from 0 to 0xffffffff
-        noncebase[0] = UInt32(i) * 0x100 * UInt32(gridSize.width)
+    for i in UInt32(noncebase[0])..<0x100 { // nonce from 0 to 0xffffffff
+        noncebase[0] = i * 0x100 * UInt32(gridSize.width)
         noncebuf!.contents().copyMemory(from: noncebase, byteCount: MemoryLayout<UInt32>.stride)
         if i % 10 == 0 {
             print("Iteration \(i): \(Date()) - \(String(format: "%08x", noncebase[0]))")
@@ -117,10 +142,16 @@ func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], dif
             }
             let hashString = outhash.compactMap { String(format: "%02x", $0) }.reversed().joined()
             print(hashString)
-            return nonce
+            return .found(nonce)
+        } else {
+            if let istream = oistream {
+                if istream.hasBytesAvailable {
+                    return .interrupted(i)
+                }
+            }
         }
     }
-    return nil
+    return .exhausted
 }
 
 

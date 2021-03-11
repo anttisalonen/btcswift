@@ -15,6 +15,9 @@ func writeStr(stream: OutputStream, str: String) {
 
 func readStr(stream: InputStream) -> String {
     var buffer = [UInt8](repeating: 0, count: 4096)
+    if !stream.hasBytesAvailable {
+        return ""
+    }
     let numBytesRead = stream.read(&buffer, maxLength: buffer.count)
     if numBytesRead > 0 {
         let dataIn = String(decoding: Data(buffer), as: UTF8.self)
@@ -50,16 +53,19 @@ func connectStratum(host: String, port: Int, worker_name: String, password: Stri
         writeStr(stream: outputStream, str: "{\"id\": 1, \"method\": \"mining.subscribe\", \"params\": []}\n")
         let resp1 = readStr(stream: inputStream)
         writeStr(stream: outputStream, str: "{\"params\": [\"\(worker_name)\", \"\(password)\"], \"id\": 2, \"method\": \"mining.authorize\"}\n")
-        let resp2 = readStr(stream: inputStream).components(separatedBy: "\n")
-        let ctxt = getMiningContext(jsondata: [resp1] + resp2)!
         sleep(1)
-        readStr(stream: inputStream)
+        let resp2 = readStr(stream: inputStream).components(separatedBy: "\n")
+        let (octxt, _) = getMiningContext(jsondata: [resp1] + resp2, mprevContext: nil)
+        let ctxt = octxt!
+        if ctxt.mineparams.diff > 1 {
+            writeStr(stream: outputStream, str: "{\"id\": 3, \"method\": \"mining.suggest_difficulty\", \"params\": [1]}")
+        }
         return (Stratum(inputStream: inputStream, outputStream: outputStream, worker_name: worker_name, password: password), ctxt)
     }
     return nil
 }
 
-func getMiningContext(jsondata: [String]) -> MiningContext? {
+func getMiningContext(jsondata: [String], mprevContext: MiningContext?) -> (MiningContext?, Bool) {
     var extranonce1: String = ""
     var extranonce2_size: Int = 0
     
@@ -73,6 +79,13 @@ func getMiningContext(jsondata: [String]) -> MiningContext? {
     var version: String = ""
     var nbits: String = ""
     var ntime: String = ""
+    var clean_jobs: Bool = false
+    
+    if let prevContext = mprevContext {
+        extranonce1 = prevContext.mineparams.extranonce1
+        extranonce2_size = prevContext.mineparams.extranonce2_size
+        udiff = prevContext.mineparams.diff
+    }
     
     for jsond in jsondata {
         if jsond == "" {
@@ -101,13 +114,14 @@ func getMiningContext(jsondata: [String]) -> MiningContext? {
                     version = jsonparams[5] as! String
                     nbits = jsonparams[6] as! String
                     ntime = jsonparams[7] as! String
+                    clean_jobs = jsonparams[8] as! Bool
                 }
             }
         }
     }
     
     if extranonce2_size == 0 || ntime == "" {
-        return nil
+        return (nil, false)
     }
 
     let params: MineParameters = MineParameters(
@@ -121,12 +135,23 @@ func getMiningContext(jsondata: [String]) -> MiningContext? {
         version: version,
         nbits: nbits,
         ntime: ntime)
-    print(params)
-    return MiningContext(jobid: job_id, mineparams: params)
+    return (MiningContext(jobid: job_id, mineparams: params), clean_jobs)
 }
 
 func submitShare(stratum: Stratum, next_id: Int, jobid: String, extranonce2: UInt32, extranonce2_size: Int, ntime: String, nonce: UInt32) {
     let fmtstr = String(format: "%%0%dx", extranonce2_size * 2)
     writeStr(stream: stratum.outputStream, str: "{\"params\": [\"\(stratum.worker_name)\", \"\(jobid)\", \"\(String(format: fmtstr, extranonce2))\", \"\(ntime)\", \"\(String(format: "%08x", nonce))\"], \"id\": \(next_id), \"method\": \"mining.submit\"}\n")
     _ = readStr(stream: stratum.inputStream)
+}
+
+func handleStratumInterrupt(stratum: Stratum, prevContext: MiningContext) -> MiningContext? {
+    print("!! Stratum message interrupts mining")
+    let indata = readStr(stream: stratum.inputStream).components(separatedBy: "\n")
+    let (newctxt, do_clean) = getMiningContext(jsondata: indata, mprevContext: prevContext)
+    if let ctxt = newctxt {
+        if do_clean || ctxt.mineparams.diff < prevContext.mineparams.diff {
+            return ctxt
+        }
+    }
+    return nil
 }

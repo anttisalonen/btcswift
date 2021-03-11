@@ -25,12 +25,33 @@ func main() {
     
     // test
     print(stratumparams)
-    let (test_extranonce2, test_nonce) = readAndMine(ctxt: metalctxt, params: stratumparams)!
-    assert(test_extranonce2 == 0x00000000 && test_nonce == 0x013817dd)
+    let testresult = readAndMine(ctxt: metalctxt, params: stratumparams, oistream: nil, interruptData: nil)
+    switch testresult {
+    case .found(let test_extranonce2, let test_nonce): assert(test_extranonce2 == 0x00000000 && test_nonce == 0x013817dd)
+    default: assert(false)
+    }
 
-    let (stratum, miningctxt) = connectStratum(host: HOST, port: PORT, worker_name: worker_name, password: password)!
-    let (extranonce2, nonce) = readAndMine(ctxt: metalctxt, params: miningctxt.mineparams)!
-    submitShare(stratum: stratum, next_id: 3, jobid: miningctxt.jobid, extranonce2: extranonce2, extranonce2_size: miningctxt.mineparams.extranonce2_size, ntime: miningctxt.mineparams.ntime, nonce: nonce)
-    sleep(1)
-    _ = readStr(stream: stratum.inputStream)
+    var (stratum, miningctxt) = connectStratum(host: HOST, port: PORT, worker_name: worker_name, password: password)!
+    var interruptData: (UInt32, UInt32)? = nil
+    while true {
+        let result = readAndMine(ctxt: metalctxt, params: miningctxt.mineparams, oistream: stratum.inputStream, interruptData: interruptData)
+        switch result {
+        case .found(let extranonce2, let nonce):
+            submitShare(stratum: stratum, next_id: 3, jobid: miningctxt.jobid, extranonce2: extranonce2, extranonce2_size: miningctxt.mineparams.extranonce2_size, ntime: miningctxt.mineparams.ntime, nonce: nonce)
+            sleep(1)
+            _ = readStr(stream: stratum.inputStream)
+            return
+        case .exhausted:
+            print("Not found")
+            return
+        case .interrupted(let int1, let int2):
+            interruptData = (int1, int2)
+            let maybeNewMiningCtxt = handleStratumInterrupt(stratum: stratum, prevContext: miningctxt)
+            if let newMiningCtxt = maybeNewMiningCtxt {
+                print("Got new mining context")
+                miningctxt = newMiningCtxt
+                interruptData = nil
+            }
+        }
+    }
 }
