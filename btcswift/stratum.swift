@@ -51,7 +51,7 @@ func connectStratum(host: String, port: Int, worker_name: String, password: Stri
         let resp1 = readStr(stream: inputStream)
         writeStr(stream: outputStream, str: "{\"params\": [\"\(worker_name)\", \"\(password)\"], \"id\": 2, \"method\": \"mining.authorize\"}\n")
         let resp2 = readStr(stream: inputStream).components(separatedBy: "\n")
-        let ctxt = getMiningContext(data1: resp1, data2: resp2[0], data3: resp2[1])
+        let ctxt = getMiningContext(jsondata: [resp1] + resp2)!
         sleep(1)
         readStr(stream: inputStream)
         return (Stratum(inputStream: inputStream, outputStream: outputStream, worker_name: worker_name, password: password), ctxt)
@@ -59,26 +59,56 @@ func connectStratum(host: String, port: Int, worker_name: String, password: Stri
     return nil
 }
 
-func getMiningContext(data1: String, data2: String, data3: String) -> MiningContext {
-    let json = try! JSONSerialization.jsonObject(with: Data(data1.utf8), options: []) as! [String: Any]
-    let result = json["result"] as! [Any]
-    let extranonce1 = result[1] as! String
-    let extranonce2_size = result[2] as! Int
-
-    let json2 = try! JSONSerialization.jsonObject(with: Data(data2.utf8), options: []) as! [String: Any]
-    let diff = (json2["params"] as! [Double])[0]
-    let udiff = diff < 1.0 ? UInt64(0) : UInt64(diff)
-
-    let json3 = try! JSONSerialization.jsonObject(with: Data(data3.utf8), options: []) as! [String: Any]
-    let jsonparams = json3["params"] as! [Any]
-    let job_id = jsonparams[0] as! String
-    let prevhash = jsonparams[1] as! String
-    let coinb1 = jsonparams[2] as! String
-    let coinb2 = jsonparams[3] as! String
-    let branches = jsonparams[4] as! [String]
-    let version = jsonparams[5] as! String
-    let nbits = jsonparams[6] as! String
-    let ntime = jsonparams[7] as! String
+func getMiningContext(jsondata: [String]) -> MiningContext? {
+    var extranonce1: String = ""
+    var extranonce2_size: Int = 0
+    
+    var udiff: UInt64 = 0
+    
+    var job_id: String = ""
+    var prevhash: String = ""
+    var coinb1: String = ""
+    var coinb2: String = ""
+    var branches: [String] = []
+    var version: String = ""
+    var nbits: String = ""
+    var ntime: String = ""
+    
+    for jsond in jsondata {
+        if jsond == "" {
+            continue
+        }
+        let json = try! JSONSerialization.jsonObject(with: Data(jsond.utf8), options: []) as! [String: Any]
+        let optid = json["id"]
+        if let id = optid as? Int {
+            if id == 1 {
+                let result = json["result"] as! [Any]
+                extranonce1 = result[1] as! String
+                extranonce2_size = result[2] as! Int
+            }
+        } else {
+            if let method = json["method"] as? String {
+                if method == "mining.set_difficulty" {
+                    let diff = (json["params"] as! [Double])[0]
+                    udiff = diff < 1.0 ? UInt64(0) : UInt64(diff)
+                } else if method == "mining.notify" {
+                    let jsonparams = json["params"] as! [Any]
+                    job_id = jsonparams[0] as! String
+                    prevhash = jsonparams[1] as! String
+                    coinb1 = jsonparams[2] as! String
+                    coinb2 = jsonparams[3] as! String
+                    branches = jsonparams[4] as! [String]
+                    version = jsonparams[5] as! String
+                    nbits = jsonparams[6] as! String
+                    ntime = jsonparams[7] as! String
+                }
+            }
+        }
+    }
+    
+    if extranonce2_size == 0 || ntime == "" {
+        return nil
+    }
 
     let params: MineParameters = MineParameters(
         extranonce1: extranonce1,
