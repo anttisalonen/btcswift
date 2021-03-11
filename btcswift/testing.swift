@@ -1,0 +1,85 @@
+//
+//  testing.swift
+//  btcswift
+//
+//  Created by Antti Salonen on 09/03/2021.
+//
+
+import Foundation
+import Crypto
+
+func testHash() {
+    let version = String(format: "%08x", UInt32(bigEndian: 1).littleEndian)
+    let prevBlock = strToLittleEndian(inp: "00000000000008a3a41b85b8b29ad444def299fee21793cd8b9e567eab02cd81")
+    let merkleRoot = strToLittleEndian(inp: "2b12fcf1b09288fcaff797d71e950e71ae42b91e8bdb2304758dfcffc2b620e3")
+    let timestamp = String(format: "%08x", UInt32(bigEndian: 1305998791).littleEndian)
+    let bits = String(format: "%08x", UInt32(bigEndian: 440711666).littleEndian)
+    let nonce = String(format: "%08x", UInt32(bigEndian: 2504433986).littleEndian)
+    
+    let headerHex = version + prevBlock + merkleRoot + timestamp + bits + nonce
+    print(headerHex)
+    
+    let inputData = Data(hexString: headerHex)!
+    let hashed = SHA256.hash(data: inputData)
+    let hashed2 = SHA256.hash(data: Data(hashed))
+    let hashString = hashed2.compactMap { String(format: "%02x", $0) }.reversed().joined()
+    
+    print(hashString)
+}
+
+/*
+let input = "0000002063bf28417b38570f415be2007eb71b9d36407e66e8fed8a756010000000000009b9c9ab0b1c92844e4fed3f895f9443fefcda5ae02cc5a8ad4444f93"
+let (_, state, _) = sha256(input: [UInt8](Data(hexString: input)!))
+let hash_input = "03081a238c8a145e98b0021ad0cf1040800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000280"
+metalSha(metalctxt: ctxt, state: state, hash_input: [UInt8](Data(hexString: hash_input)!), difficulty: 1)
+ */
+
+
+let f2pool_params = MineParameters(
+    extranonce1: "00",
+    extranonce2_size: 8,
+    diff: 1,
+    prevhash: "37b402e08e42e39e009f5470251d4f75607313f6000c9f850000000000000000",
+    coinb1: "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff64031b450a2cfabe6d6d3b021eb18efc4ee2d0aa627af7130f86abf4288d83b9441015a1a2fe752527e810000000f09f909f082f4632506f6f6c2f0e4d696e656420627920616e74746900000000000000000000000000000000000000000005",
+    coinb2: "0443b27b29000000001976a914c825a1ecf2a6830c4401620c3a16f1995057c2ab88ac00000000000000002f6a24aa21a9ed550ae1fec3b1e0da653968d9903bd25d8d14b62e2d1657c2e57da0916b4dd35208000000000000000000000000000000002c6a4c2952534b424c4f434b3a46836ee1f6b21aaaec920d6ff751b62d8f42b0e3af37490dbc861a23002fcd020000000000000000266a24b9e11b6d9dba9e17e0d5b3a113458f47bb5ea2cd6301d2c489a5aca4d77a6d14e8699d9d7c2cc739",
+    merkle_branches: ["000ba37c5fc781774502ed6634d55ee2101598de818632a4fbf2d8fa3b66a9ae","f4ea1e236526258294ee075c6aaedb76da94953a0fc665f827be6a6c91be02fc","d567a93c80be6a3425ac4e9ff1c657bcd2657122e5766e35b7f8a76764f6ffb6","3ecc37a3189037cd0831fdc2403b86dbf5352578aced55ed9c23c6b6304abee7","326dcdd35adaf3dc56ab9033f5db119cd2863c513b7ef617bc94e8e1c49cd499","067af004f8af8ec73551d8a0c775fafc99ff60c5b2709a9d0e0291ed7460a69b","d32916d50c00d607d3b40b2dcc092dbcc15822a619fae1638e2eeb7ed5d9d4b8","ff1b12356da0d6d7919f89dd0f5434388faa036b361b8567fc2b0870256f7f27","158a53e7c82823c13f089f2283ced9f890c64421ef60a99560148a1d1f8fb9e6","2292818446b1e7354e7c09ca7225944633c301fe158e142972969352a9890ed8","e89c9ea3cd706fda19c1458602653f2eb53520c1cba4adef92615678711d456d","f96cd98cbc17c1a4e8913ce48ffcaaa7ca105a70885698388c4cd5c0c27b78a7"],
+    version: "20000000",
+    nbits: "170cf4e3",
+    ntime: "604015a8")
+
+let kapitanparams = MineParameters(
+    extranonce1: "40000004",
+    extranonce2_size: 4,
+    diff: 0,
+    prevhash: "4128bf630f57387b00e25b419d1bb77e667e4036a7d8fee80000015600000000",
+    coinb1: "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff2503a77614048c8a145e08",
+    coinb2: "122f626974636f696e636c6f75642e6e65742f0000000002062c9c04000000001976a91423e020eacd64acfe093150331d44fdbcc0c7ce0688acc2eb0b00000000001976a91400bf6d61c2a34df5a9ea338fcad188c31bb4a52388ac00000000",
+    merkle_branches: [],
+    version: "20000000",
+    nbits: "1a02b098",
+    ntime: "5e148a8c")
+
+let slushparams = MineParameters(
+    extranonce1: "08000002",
+    extranonce2_size: 4,
+    diff: 1,
+    prevhash: "4d16b6f85af6e2198f44ae2a6de67f78487ae5611b77c6c0440b921e00000000",
+    coinb1: "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff20020862062f503253482f04b8864e5008",
+    coinb2: "072f736c7573682f000000000100f2052a010000001976a914d23fcdf86f7e756a64a7a9688ef9903327048ed988ac00000000",
+    merkle_branches: [],
+    version: "00000002",
+    nbits: "1c2ac4af",
+    ntime: "504e86ed")
+
+// correct: 013817dd
+let stratumparams = MineParameters(
+    extranonce1: "20000024",
+    extranonce2_size: 4,
+    diff: 0,
+    prevhash: "23291b066f70a02b9a75b341dafc2fa8ebe247c9827956bbab00000000000000",
+    coinb1: "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff2503a0921504026e486008",
+    coinb2: "122f626974636f696e636c6f75642e6e65742f0000000002062c9c04000000001976a91423e020eacd64acfe093150331d44fdbcc0c7ce0688acc2eb0b00000000001976a91400bf6d61c2a34df5a9ea338fcad188c31bb4a52388ac00000000",
+    merkle_branches: [],
+    version: "00000002",
+    nbits: "fb39031a",
+    ntime: "216e4860")

@@ -10,6 +10,12 @@
 		E42FA6EE25F02CAC008DA92E /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E42FA6ED25F02CAC008DA92E /* main.swift */; };
 		E42FA6F725F02DAF008DA92E /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = E42FA6F625F02DAF008DA92E /* Crypto */; };
 		E42FA6FA25F17E48008DA92E /* kernels.metal in Sources */ = {isa = PBXBuildFile; fileRef = E42FA6F925F17E48008DA92E /* kernels.metal */; };
+		E48BE98625F6CE790032E5C6 /* sha256.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48BE98525F6CE790032E5C6 /* sha256.swift */; };
+		E48BE98E25F8139C0032E5C6 /* testing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48BE98D25F8139C0032E5C6 /* testing.swift */; };
+		E48BE99125F813A90032E5C6 /* util.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48BE99025F813A90032E5C6 /* util.swift */; };
+		E48BE99425F813D90032E5C6 /* stratum.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48BE99325F813D90032E5C6 /* stratum.swift */; };
+		E48BE99725F814570032E5C6 /* mining.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48BE99625F814570032E5C6 /* mining.swift */; };
+		E48BE99E25F814CD0032E5C6 /* struct.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48BE99D25F814CD0032E5C6 /* struct.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -28,6 +34,12 @@
 		E42FA6EA25F02CAC008DA92E /* btcswift */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = btcswift; sourceTree = BUILT_PRODUCTS_DIR; };
 		E42FA6ED25F02CAC008DA92E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		E42FA6F925F17E48008DA92E /* kernels.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = kernels.metal; sourceTree = "<group>"; };
+		E48BE98525F6CE790032E5C6 /* sha256.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = sha256.swift; sourceTree = "<group>"; };
+		E48BE98D25F8139C0032E5C6 /* testing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = testing.swift; sourceTree = "<group>"; };
+		E48BE99025F813A90032E5C6 /* util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = util.swift; sourceTree = "<group>"; };
+		E48BE99325F813D90032E5C6 /* stratum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = stratum.swift; sourceTree = "<group>"; };
+		E48BE99625F814570032E5C6 /* mining.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mining.swift; sourceTree = "<group>"; };
+		E48BE99D25F814CD0032E5C6 /* struct.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = struct.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,7 +74,13 @@
 		E42FA6EC25F02CAC008DA92E /* btcswift */ = {
 			isa = PBXGroup;
 			children = (
+				E48BE98525F6CE790032E5C6 /* sha256.swift */,
 				E42FA6ED25F02CAC008DA92E /* main.swift */,
+				E48BE98D25F8139C0032E5C6 /* testing.swift */,
+				E48BE99025F813A90032E5C6 /* util.swift */,
+				E48BE99325F813D90032E5C6 /* stratum.swift */,
+				E48BE99625F814570032E5C6 /* mining.swift */,
+				E48BE99D25F814CD0032E5C6 /* struct.swift */,
 			);
 			path = btcswift;
 			sourceTree = "<group>";
@@ -130,7 +148,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E48BE98625F6CE790032E5C6 /* sha256.swift in Sources */,
 				E42FA6FA25F17E48008DA92E /* kernels.metal in Sources */,
+				E48BE99425F813D90032E5C6 /* stratum.swift in Sources */,
+				E48BE99725F814570032E5C6 /* mining.swift in Sources */,
+				E48BE99E25F814CD0032E5C6 /* struct.swift in Sources */,
+				E48BE98E25F8139C0032E5C6 /* testing.swift in Sources */,
+				E48BE99125F813A90032E5C6 /* util.swift in Sources */,
 				E42FA6EE25F02CAC008DA92E /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -97,9 +97,19 @@ void sha256_transform(thread uint32_t* state,
 }
 
 void sha256(thread const uint8_t* input,
-                   thread uint8_t* result,
-                   thread uint32_t* state)
+                   thread uint8_t* result)
 {
+    uint32_t state[8] = {
+        0x6a09e667,
+        0xbb67ae85,
+        0x3c6ef372,
+        0xa54ff53a,
+        0x510e527f,
+        0x9b05688c,
+        0x1f83d9ab,
+        0x5be0cd19,
+    };
+
     uint8_t data[64];
     for(int i = 0; i < 32; i++) {
         data[i] = input[i];
@@ -155,10 +165,10 @@ kernel void sha256_double(device const uint8_t* input,
         working_input[i] = input[i];
     }
     for(uint32_t nonce = my_base; nonce < my_base + 0xff; nonce++) {
-        working_input[15] = uint8_t((nonce >> 0) & 0xff);
-        working_input[14] = uint8_t((nonce >> 8) & 0xff);
-        working_input[13] = uint8_t((nonce >> 16) & 0xff);
-        working_input[12] = uint8_t((nonce >> 24) & 0xff);
+        working_input[12] = uint8_t((nonce >> 0) & 0xff);
+        working_input[13] = uint8_t((nonce >> 8) & 0xff);
+        working_input[14] = uint8_t((nonce >> 16) & 0xff);
+        working_input[15] = uint8_t((nonce >> 24) & 0xff);
         for(int i = 0; i < 8; i++) {
             working_state[i] = in_state[i];
         }
@@ -174,17 +184,7 @@ kernel void sha256_double(device const uint8_t* input,
             intermediate[i + 24] = uint8_t((working_state[6] >> (24 - i * 8)) & 0x000000ff);
             intermediate[i + 28] = uint8_t((working_state[7] >> (24 - i * 8)) & 0x000000ff);
         }
-        uint32_t real_state[8] = {
-            0x6a09e667,
-            0xbb67ae85,
-            0x3c6ef372,
-            0xa54ff53a,
-            0x510e527f,
-            0x9b05688c,
-            0x1f83d9ab,
-            0x5be0cd19,
-        };
-        sha256(intermediate, final_result, real_state);
+        sha256(intermediate, final_result);
         int found = 0;
         for(int i = 0; i < 32; i++) {
             if(final_result[31 - i] > target[i])
