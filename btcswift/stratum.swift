@@ -14,7 +14,7 @@ func writeStr(stream: OutputStream, str: String) {
 }
 
 func readStr(stream: InputStream) -> String {
-    var buffer = [UInt8](repeating: 0, count: 4096)
+    var buffer = [UInt8](repeating: 0, count: 16384)
     if !stream.hasBytesAvailable {
         return ""
     }
@@ -22,7 +22,7 @@ func readStr(stream: InputStream) -> String {
     if numBytesRead > 0 {
         let dataIn = String(decoding: Data(buffer), as: UTF8.self)
         let data = dataIn.replacingOccurrences(of: "\0", with: "")
-        print("Stratum IN:  \(data)")
+        print("Stratum IN:  \(String(data.prefix(100)))")
         return data
     }
     return ""
@@ -57,8 +57,8 @@ func connectStratum(host: String, port: Int, worker_name: String, password: Stri
         let resp2 = readStr(stream: inputStream).components(separatedBy: "\n")
         let (octxt, _) = getMiningContext(jsondata: [resp1] + resp2, mprevContext: nil)
         let ctxt = octxt!
-        if ctxt.mineparams.diff > 1 {
-            writeStr(stream: outputStream, str: "{\"id\": 3, \"method\": \"mining.suggest_difficulty\", \"params\": [1]}")
+        if ctxt.mineparams.diff > 128 {
+            writeStr(stream: outputStream, str: "{\"id\": 3, \"method\": \"mining.suggest_difficulty\", \"params\": [128]}")
         }
         return (Stratum(inputStream: inputStream, outputStream: outputStream, worker_name: worker_name, password: password), ctxt)
     }
@@ -144,12 +144,12 @@ func submitShare(stratum: Stratum, next_id: Int, jobid: String, extranonce2: UIn
     _ = readStr(stream: stratum.inputStream)
 }
 
-func handleStratumInterrupt(stratum: Stratum, prevContext: MiningContext) -> MiningContext? {
+func handleStratumInterrupt(stratum: Stratum, prevContext: MiningContext, waiting: Bool) -> MiningContext? {
     print("!! Stratum message interrupts mining")
     let indata = readStr(stream: stratum.inputStream).components(separatedBy: "\n")
     let (newctxt, do_clean) = getMiningContext(jsondata: indata, mprevContext: prevContext)
     if let ctxt = newctxt {
-        if do_clean || ctxt.mineparams.diff < prevContext.mineparams.diff {
+        if do_clean || waiting || ctxt.mineparams.diff != prevContext.mineparams.diff {
             return ctxt
         }
     }

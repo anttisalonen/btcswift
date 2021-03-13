@@ -39,7 +39,7 @@ enum MineResult {
     case found(UInt32, UInt32)
 }
 
-func readAndMine(ctxt: MetalContext, params: MineParameters, oistream: InputStream?, interruptData: (UInt32, UInt32)?) -> MineResult {
+func readAndMine(ctxt: MetalContext, params: MineParameters, oistream: InputStream?, interruptData: (UInt32, UInt32)?, mining_mode: MiningMode) -> MineResult {
     assert(params.extranonce2_size >= 2)
     var extranon2_start = UInt32(0)
     var intdata2: UInt32? = nil
@@ -51,7 +51,7 @@ func readAndMine(ctxt: MetalContext, params: MineParameters, oistream: InputStre
         var extranonce2 = String(format: "%04x", extranon2)
         extranonce2 = extranonce2.leftPadding(toLength: params.extranonce2_size * 2, withPad: "0")
         assert(extranonce2.count == params.extranonce2_size * 2)
-        print("Extranonce2: \(extranonce2)")
+        print("\(Date()) - Extranonce2: \(extranonce2)")
         let coinbase = params.coinb1 + params.extranonce1 + extranonce2 + params.coinb2
         let coinbase_hash_bin = doubleSHA256(input: Data(hexString: coinbase)!)
         let merkle_root = getMerkleRoot(branches: params.merkle_branches, coinbase: coinbase_hash_bin)
@@ -60,10 +60,10 @@ func readAndMine(ctxt: MetalContext, params: MineParameters, oistream: InputStre
         let header = headerWithoutPadding + "800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000280"
         let header1 = String(header.prefix(128))
         let header2 = String(header.suffix(128))
-        print("Header without padding: \(headerWithoutPadding)")
+        //print("Header without padding: \(headerWithoutPadding)")
         assert(header.count == 256)
         let (_, state, _) = sha256(input: [UInt8](Data(hexString: header1)!))
-        let intresult = metalSha(metalctxt: ctxt, state: state, hash_input: [UInt8](Data(hexString: header2)!), difficulty: params.diff, oistream: oistream, interruptData: intdata2)
+        let intresult = metalSha(metalctxt: ctxt, state: state, hash_input: [UInt8](Data(hexString: header2)!), difficulty: params.diff, oistream: oistream, interruptData: intdata2, mining_mode: mining_mode)
         switch intresult {
         case .interrupted(let intnonce): return .interrupted(extranon2, intnonce)
         case .found(let nonce): return .found(extranon2, nonce)
@@ -79,20 +79,22 @@ enum IntermediateMineResult {
     case found(UInt32)
 }
 
-func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], difficulty: UInt64, oistream: InputStream?, interruptData: UInt32?) -> IntermediateMineResult {
+func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], difficulty: UInt64, oistream: InputStream?, interruptData: UInt32?, mining_mode: MiningMode) -> IntermediateMineResult {
     let maxtgt: UInt64 = 0xffff0000
     var tgtn: String
     if difficulty == 0 {
-        tgtn = String("00000063ff9c0000000000000000000000000000000000000000000000000000")
+        let tgt: UInt64 = UInt64(Double(maxtgt) / 0.01)
+        tgtn = String(format: "00000000%08x000000000000000000000000000000000000000000000000", tgt)
+        //tgtn = String("00000063ff9c0000000000000000000000000000000000000000000000000000")
     } else {
         let tgt: UInt64 = maxtgt / difficulty
         tgtn = String(format: "00000000%08x000000000000000000000000000000000000000000000000", tgt)
     }
     //let tgtn = String(format: "0000000fffff0000000000000000000000000000000000000000000000000000")
     print("Difficulty: \(difficulty)")
-    print("Target: \(tgtn)")
+    //print("Target: \(tgtn)")
     let target = [UInt8](Data(hexString: tgtn)!)
-    print("Target len: \(target.count)")
+    //print("Target len: \(target.count)")
     var noncebase: [UInt32] = [0]
     if let intdata = interruptData {
         noncebase = [intdata]
@@ -108,14 +110,15 @@ func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], dif
     let outbuf = metalctxt.device.makeBuffer(bytes: output, length: 32, options: [MTLResourceOptions.storageModeManaged])
     let noncefoundbuf = metalctxt.device.makeBuffer(bytes: noncefound, length: MemoryLayout<UInt32>.stride, options: [MTLResourceOptions.storageModeManaged])
 
-    let gridSize = MTLSizeMake(65536, 1, 1)
+    let gridSize = MTLSizeMake(mining_mode == .full ? 65536 : 16384, 1, 1)
+    let nonceloops: UInt32 = mining_mode == .full ? 0x100 : 0x400
 
-    for i in UInt32(noncebase[0])..<0x100 { // nonce from 0 to 0xffffffff
+    for i in UInt32(noncebase[0])..<nonceloops { // nonce from 0 to 0xffffffff
         noncebase[0] = i * 0x100 * UInt32(gridSize.width)
         noncebuf!.contents().copyMemory(from: noncebase, byteCount: MemoryLayout<UInt32>.stride)
-        if i % 10 == 0 {
-            print("Iteration \(i): \(Date()) - \(String(format: "%08x", noncebase[0]))")
-        }
+        //if i % 10 == 0 {
+        //    print("Iteration \(i): \(Date()) - \(String(format: "%08x", noncebase[0]))")
+        //}
 
         autoreleasepool {
             let commandBuffer = metalctxt.queue.makeCommandBuffer()!
@@ -149,6 +152,10 @@ func metalSha(metalctxt: MetalContext, state: [UInt32], hash_input: [UInt8], dif
                     return .interrupted(i)
                 }
             }
+        }
+        
+        if mining_mode == .background {
+            usleep(100 * 1000) // 100 ms
         }
     }
     return .exhausted
