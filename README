@@ -1,0 +1,5 @@
+Execution example (Testnet): ./btcswift pool.bitcoincloud.net 4008 2N16oE62ZjAPup985dFBQYAuy5zpDraH7Hk anything background
+
+(Binary should be in e.g. ~/Library/Developer/Xcode/DerivedData/btcswift-clyalvjmdzfeqpgcueajypfbhsdg/Build/Products/Debug)
+
+Achieves around 0.9GH/s. No, it's not profitable. But I learned a lot.
