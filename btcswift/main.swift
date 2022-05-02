@@ -29,30 +29,12 @@ func main() {
     
     let metalctxt = initMetal()
     
-    //let HOST = "eu.stratum.slushpool.com"
-    //let PORT = 3333
-    //let worker_name = "anttifoobar.001"
-    //let password = "anything"
-    
-    //let HOST = "btc.f2pool.com"
-    //let PORT = 1314
-    //let worker_name = "antti.001"
-    //let password = "21235365876986800"
-
     // testnet
     //let HOST = "pool.bitcoincloud.net"
     //let PORT = 4008
     //let worker_name = "2N16oE62ZjAPup985dFBQYAuy5zpDraH7Hk"
     //let password = "anything"
     
-    // test
-    //print(stratumparams)
-    //let testresult = readAndMine(ctxt: metalctxt, params: stratumparams, oistream: nil, interruptData: nil)
-    //switch testresult {
-    //case .found(let test_extranonce2, let test_nonce): assert(test_extranonce2 == 0x00000000 && test_nonce == 0x013817dd)
-    //default: assert(false)
-    //}
-
     var (stratum, miningctxt) = connectStratum(host: HOST, port: PORT, worker_name: worker_name, password: password)!
     var interruptData: (UInt32, UInt32)? = nil
     var finished = false
